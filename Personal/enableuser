@@ -1,0 +1,50 @@
+#/bin/sh
+
+#source /home/ciadmin/.bash_profile
+userList=/ciapp/jenkins/workspace/Enable_Customer/UpdatePropertyFiles/Enable_userlist.txt
+
+if [ -s "/ciapp/utilityscripts/masterServerList/AWS/prod.properties" ];
+then
+        serverArray=$(grep -e "CommBE1Kafka-prod" /ciapp/utilityscripts/masterServerList/AWS/prod.properties | awk -F= '{print $2}'| sed 's/[[:space:]]//g' | sed 's/^$//g' | tr "\n" "," | sed 's/,,/,/g' | sed 's/,$//g')
+        if [ -n "$serverArray" ];
+        then
+                echo "Going to check COM Server : $serverArray"
+        else
+                echo "Unable to get Commerce Server List"
+                exit 1
+        fi
+else
+        echo "Unable to get prod server property"
+        exit 1
+fi
+
+cat $userList
+
+for user in `cat $userList`
+do
+        user=${user%$'\r'}
+        echo "###################################################################################"
+        echo "##################### Impex Execution for user to enable login#####################"
+        echo "###################################################################################"
+
+        URL_impex='http://'$serverArray':9001/marketplacewebservices/v2/mpl/logindisable?Uid='$user'&disable=false&isCustomer=true&passwordReset=false'
+
+        curl -i -XPOST $URL_impex > /tmp/token_impex.log
+        response=`cat /tmp/token_impex.log | grep "HTTP/1.1 200"`
+        rc=$?;
+        if [ $rc -eq 0 ];
+        then
+                echo "Marketplace and hmc login is now Enabled for $user"
+        else
+                echo "*******ERROR******while loginEnable"
+                echo "$user" >> /tmp/User/notAbletoEnableUser.txt
+        fi
+done
+
+cat $userList > /ciapp/Probodh/Enable_User/Enable_user_$dt.txt
+#touch /script/userlist/test.txt
+chmod 777 $userList
+cat /dev/null > $userList
+
+echo "Please find the list of users whose account is not Enable"
+cat /tmp/User/notAbletoEnableUser.txt
