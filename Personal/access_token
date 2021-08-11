@@ -1,0 +1,50 @@
+#/bin/sh
+
+USER=ciadmin
+
+if [ -s "/ciapp/utilityscripts/masterServerList/AWS/prod.properties" ];
+then
+        serverArray=$(grep -e "CommBE3InstantHotfolder-prod" /ciapp/utilityscripts/masterServerList/AWS/prod.properties | awk -F= '{print $2}'| sed 's/[[:space:]]//g' | sed 's/^$//g' | tr "\n" "," | sed 's/,,/,/g' | sed 's/,$//g')
+        server=$(grep -e "BEprodRedisMaster" /ciapp/utilityscripts/masterServerList/AWS/prod.properties | awk -F= '{print $2}'| sed 's/[[:space:]]//g' | sed 's/^$//g' | tr "\n" "," | sed 's/,,/,/g' | sed 's/,$//g')
+        if [ -n "$serverArray" ];
+        then
+                echo "Going to check COM Server : $serverArray "
+        else
+                echo "Unable to get Commerce Server List "
+                exit 1
+        fi
+
+                if [ -n "$server" ];
+        then
+                echo "Going to check redis master Server : $server "
+        else
+                echo "Unable to get Commerce Server List "
+                exit 1
+        fi
+else
+        echo "Unable to get prod server property"
+        exit 1
+fi
+
+scp -q -r /ciapp/jenkins/workspace/access_token/UpdatePropertyFiles/accesstoken_userlist.txt $USER@$server:/script/userlist/
+returncode=$?;
+if [ $returncode -ne 0 ];
+then
+        echo "******ERROR****** while coping property file to $server  "
+        exit 1;
+fi
+
+ssh -q $USER@$server '
+
+sh /script/accesstoken_updated.sh
+if [ $? -ne 0 ];
+then
+        echo "****ERROR****  user script for Access token has not trigger successfully"
+        exit 1;
+else
+        echo " "
+        echo "##################################################################################"
+        echo "############ script execution has been completed successfully ####################"
+        echo "##################################################################################"
+fi
+'
